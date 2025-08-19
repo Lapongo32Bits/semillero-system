@@ -39,6 +39,17 @@ export default function UsuariosPage() {
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<Usuario | null>(null)
+  const [editUser, setEditUser] = useState({
+    name: "",
+    email: "",
+    role: "estudiante" as "administrador" | "profesor" | "estudiante" | "visitante",
+    semilleroId: "",
+    password: "",
+    confirmPassword: "",
+  })
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [newUser, setNewUser] = useState({
     name: "",
@@ -238,6 +249,65 @@ export default function UsuariosPage() {
     setIsDialogOpen(false)
   }
 
+  const handleViewProfile = (usuario: Usuario) => {
+    setSelectedUser(usuario)
+    setIsProfileDialogOpen(true)
+  }
+
+  const handleEditUser = (usuario: Usuario) => {
+    setSelectedUser(usuario)
+    setEditUser({
+      name: usuario.name,
+      email: usuario.email,
+      role: usuario.role,
+      semilleroId: usuario.semilleroId || "",
+      password: "",
+      confirmPassword: "",
+    })
+    setIsEditDialogOpen(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editUser.name || !editUser.email || !editUser.role) {
+      toast({
+        title: "Error",
+        description: "Todos los campos son obligatorios",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Validación de contraseñas si se proporcionan
+    if (editUser.password && editUser.password !== editUser.confirmPassword) {
+      toast({
+        title: "Error",
+        description: "Las contraseñas no coinciden",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (editUser.password && editUser.password.length < 6) {
+      toast({
+        title: "Error",
+        description: "La contraseña debe tener al menos 6 caracteres",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // In a real app, this would call an API to update the user
+    toast({
+      title: "Usuario actualizado",
+      description: `La información de ${editUser.name} ha sido actualizada exitosamente`,
+    })
+
+    setIsEditDialogOpen(false)
+    setSelectedUser(null)
+    // Reload users to reflect changes
+    loadUsuarios()
+  }
+
   const handleStatusChange = async (usuarioId: string, newStatus: "activo" | "inactivo" | "pendiente") => {
     // Find if this is a student
     const student = students.find((s) => s.id === usuarioId)
@@ -249,6 +319,13 @@ export default function UsuariosPage() {
           description: `El estado del usuario ha sido actualizado a ${newStatus}`,
         })
       }
+    } else {
+      // For other user types (in real app, would call API)
+      toast({
+        title: "Estado actualizado",
+        description: `El estado del usuario ha sido actualizado a ${newStatus}`,
+      })
+      loadUsuarios()
     }
   }
 
@@ -468,8 +545,12 @@ export default function UsuariosPage() {
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
-                                    <DropdownMenuItem>Ver Perfil</DropdownMenuItem>
-                                    <DropdownMenuItem>Editar Usuario</DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleViewProfile(usuario)}>
+                                      Ver Perfil
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleEditUser(usuario)}>
+                                      Editar Usuario
+                                    </DropdownMenuItem>
                                     {usuario.status === "activo" ? (
                                       <DropdownMenuItem onClick={() => handleStatusChange(usuario.id, "inactivo")}>
                                         Desactivar
@@ -501,6 +582,152 @@ export default function UsuariosPage() {
             </TabsContent>
           ))}
         </Tabs>
+
+        {/* Profile Dialog */}
+        <Dialog open={isProfileDialogOpen} onOpenChange={setIsProfileDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Perfil de Usuario</DialogTitle>
+              <DialogDescription>Información detallada del usuario seleccionado.</DialogDescription>
+            </DialogHeader>
+            {selectedUser && (
+              <div className="grid gap-4 py-4">
+                <div className="flex items-center space-x-4">
+                  <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+                    {(() => {
+                      const RoleIcon = getRoleIcon(selectedUser.role)
+                      return <RoleIcon className="h-8 w-8" />
+                    })()}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">{selectedUser.name}</h3>
+                    <p className="text-muted-foreground">{selectedUser.email}</p>
+                  </div>
+                </div>
+                <div className="grid gap-3">
+                  <div className="flex justify-between">
+                    <span className="font-medium">Rol:</span>
+                    <Badge variant={getRoleBadgeVariant(selectedUser.role)}>{selectedUser.role}</Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium">Estado:</span>
+                    <Badge variant={getStatusBadgeVariant(selectedUser.status)}>{selectedUser.status}</Badge>
+                  </div>
+                  {selectedUser.semilleroName && (
+                    <div className="flex justify-between">
+                      <span className="font-medium">Semillero:</span>
+                      <Badge variant="outline">{selectedUser.semilleroName}</Badge>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="font-medium">Fecha de registro:</span>
+                    <span className="text-muted-foreground">{selectedUser.createdAt}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsProfileDialogOpen(false)}>
+                Cerrar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit User Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Editar Usuario</DialogTitle>
+              <DialogDescription>Modifica la información del usuario seleccionado.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-name">Nombre completo</Label>
+                <Input
+                  id="edit-name"
+                  value={editUser.name}
+                  onChange={(e) => setEditUser({ ...editUser, name: e.target.value })}
+                  placeholder="Ej: Juan Pérez"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-email">Correo electrónico</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={editUser.email}
+                  onChange={(e) => setEditUser({ ...editUser, email: e.target.value })}
+                  placeholder="juan@unilibre.edu.co"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-password">Nueva contraseña (opcional)</Label>
+                <Input
+                  id="edit-password"
+                  type="password"
+                  value={editUser.password}
+                  onChange={(e) => setEditUser({ ...editUser, password: e.target.value })}
+                  placeholder="Dejar vacío para mantener la actual"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-confirm-password">Confirmar nueva contraseña</Label>
+                <Input
+                  id="edit-confirm-password"
+                  type="password"
+                  value={editUser.confirmPassword}
+                  onChange={(e) => setEditUser({ ...editUser, confirmPassword: e.target.value })}
+                  placeholder="Confirmar nueva contraseña"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-role">Rol</Label>
+                <Select value={editUser.role} onValueChange={(value: any) => setEditUser({ ...editUser, role: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar rol" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {user?.role === "administrador" && (
+                      <>
+                        <SelectItem value="administrador">Administrador</SelectItem>
+                        <SelectItem value="profesor">Profesor</SelectItem>
+                      </>
+                    )}
+                    <SelectItem value="estudiante">Estudiante</SelectItem>
+                    <SelectItem value="visitante">Visitante</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {(editUser.role === "estudiante" || editUser.role === "profesor") && (
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-semillero">Semillero</Label>
+                  <Select
+                    value={editUser.semilleroId}
+                    onValueChange={(value) => setEditUser({ ...editUser, semilleroId: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar semillero" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {semilleros.map((semillero) => (
+                        <SelectItem key={semillero.id} value={semillero.id}>
+                          {semillero.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSaveEdit}>Guardar Cambios</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </ProtectedRoute>
   )
